@@ -1,0 +1,66 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: health-voice-backend
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  # Cấu hình kết nối MySQL Database (health_voice_db)
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:health_voice_db}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # Cấu hình JPA & Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  # Giới hạn kích thước file tải lên (audio)
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+# Cấu hình Cloud TTS FPT.AI
+fpt:
+  ai:
+    api-url: ${FPT_AI_API_URL:https://api.fpt.ai/hmi/tts/v5}
+    api-key: ${FPT_AI_KEY:QT2SnOFWi3P4pekGKV1TkuzQAKJUcNgZ}
+
+# Cấu hình lưu trữ
+storage:
+  upload-dir: ${STORAGE_UPLOAD_DIR:./uploads/audios}
+
+# Cấu hình ứng dụng riêng cho dự án & JWT
+app:
+  # Cấu hình bảo mật JWT
+  jwt:
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+  # Thư mục lưu trữ audio
+  storage:
+    audio-dir: ${AUDIO_STORAGE_PATH:./uploads/audios}
+
+logging:
+  level:
+    com.healthvoice: DEBUG
+    org.springframework.security: INFO
+
+# Python TTS Microservice
+tts:
+  service:
+    url: ${TTS_SERVICE_URL:http://localhost:8000}
