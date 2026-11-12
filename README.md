@@ -6,7 +6,7 @@ Hệ thống hoạt động theo mô hình Client-Server hiện đại, chia tá
 1. **Client (Frontend Web)**: React 18 (Vite) + Tailwind CSS + Lucide Icons + Axios + Web Audio API.
 2. **Core Backend Server**: Java 21 + Spring Boot 3.3.4 + Spring Security 6 (Stateless JWT) + Spring Data JPA + MySQL 8.0.
 3. **TTS AI Engine Service**: Python 3.11/3.14 (FastAPI) + FPT.AI TTS Cloud API + Microsoft Edge Neural TTS + Bộ chuẩn hóa văn bản y tế chuyên biệt (Regex/NLP rule-based).
-4. **Cơ sở dữ liệu**: MySQL 8.0 (`health_voice_db`).
+4. **Cơ sở dữ liệu**: 
 
 ---
 
