@@ -37,10 +37,10 @@ import java.util.UUID;
 @Service
 public class FptAiTtsService {
 
-    @Value("${fpt.ai.api-url:https://api.fpt.ai/hmi/tts/v5}")
+    @Value("${fpt.ai.api-url:https://mkp-api.fptcloud.com/v1/audio/speech}")
     private String apiUrl;
 
-    @Value("${fpt.ai.api-key:QT2SnOFWi3P4pekGKV1TkuzQAKJUcNgZ}")
+    @Value("${fpt.ai.api-key:}")
     private String apiKey;
 
     @Value("${storage.upload-dir:./uploads/audios}")
@@ -55,6 +55,39 @@ public class FptAiTtsService {
                 .followRedirects(HttpClient.Redirect.ALWAYS)
                 .build();
         this.objectMapper = new ObjectMapper();
+    }
+
+    @jakarta.annotation.PostConstruct
+    public void initApiKey() {
+        if (this.apiKey == null || this.apiKey.isBlank()) {
+            String envVal = System.getenv("FPT_AI_KEY");
+            if (envVal != null && !envVal.isBlank()) {
+                this.apiKey = envVal.trim();
+                return;
+            }
+            List<Path> candidateEnvFiles = List.of(
+                    Paths.get(".env"),
+                    Paths.get("../.env"),
+                    Paths.get("health-voice-backend/.env"));
+            for (Path path : candidateEnvFiles) {
+                if (Files.exists(path)) {
+                    try {
+                        for (String line : Files.readAllLines(path)) {
+                            String trimmed = line.trim();
+                            if (trimmed.startsWith("FPT_AI_KEY=")) {
+                                String val = trimmed.substring("FPT_AI_KEY=".length()).trim();
+                                if (!val.isBlank() && !val.contains("your_")) {
+                                    this.apiKey = val;
+                                    log.info("FptAiTtsService đã nạp FPT_AI_KEY từ file: {}", path.toAbsolutePath());
+                                    return;
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
     }
 
     @Data
@@ -106,37 +139,56 @@ public class FptAiTtsService {
         String asyncUrl = null;
 
         try {
-            // Bước 1: Gửi POST request tới FPT.AI TTS API
-            HttpRequest postRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(apiUrl))
-                    .timeout(Duration.ofSeconds(20))
-                    .header("api-key", apiKey)
-                    .header("voice", selectedVoice)
-                    .header("speed", speedHeader)
-                    .header("format", "mp3")
-                    .header("Content-Type", "text/plain; charset=utf-8")
-                    .POST(HttpRequest.BodyPublishers.ofString(text))
-                    .build();
+            if (apiKey != null && apiKey.startsWith("sk-")) {
+                // Tầng FPT AI Factory (mkp-api.fptcloud.com) — Siêu tốc, phản hồi trực tiếp MP3
+                java.util.Map<String, Object> factoryPayload = java.util.Map.of(
+                        "model", "FPT.TTS-pro",
+                        "input", text,
+                        "response_format", "mp3",
+                        "voice", "std_banmai"
+                );
+                String factoryUrl = (apiUrl != null && apiUrl.contains("fptcloud.com")) ? apiUrl : "https://mkp-api.fptcloud.com/v1/audio/speech";
+                HttpRequest factoryReq = HttpRequest.newBuilder()
+                        .uri(URI.create(factoryUrl))
+                        .timeout(Duration.ofSeconds(15))
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", "Bearer " + apiKey)
+                        .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(factoryPayload)))
+                        .build();
 
-            HttpResponse<String> postResponse = httpClient.send(postRequest, HttpResponse.BodyHandlers.ofString());
-            log.info("FPT.AI Response Status: {}, Body: {}", postResponse.statusCode(), postResponse.body());
-
-            if (postResponse.statusCode() == 200) {
-                JsonNode rootNode = objectMapper.readTree(postResponse.body());
-                if (rootNode.has("async") && !rootNode.get("async").isNull()) {
-                    asyncUrl = rootNode.get("async").asText();
-                    log.info("Đã nhận link async từ FPT.AI: {}", asyncUrl);
-
-                    // Bước 2: Polling tải file MP3 từ URL async (Retry 3 lần với delay 1.5s)
-                    audioBytes = pollAndDownloadAudio(asyncUrl, 3, 1500);
+                HttpResponse<byte[]> factoryRes = httpClient.send(factoryReq, HttpResponse.BodyHandlers.ofByteArray());
+                if (factoryRes.statusCode() == 200 && factoryRes.body() != null && factoryRes.body().length > 200) {
+                    audioBytes = factoryRes.body();
+                    log.info("FPT AI Factory (FPT.TTS-pro) tổng hợp thành công: {} bytes", audioBytes.length);
+                } else {
+                    log.warn("FPT AI Factory trả về HTTP {}. Kích hoạt cơ chế Fallback.", factoryRes.statusCode());
                 }
-            } else if (postResponse.statusCode() == 429) {
-                log.warn("FPT.AI API đạt giới hạn Rate Limit (HTTP 429). Kích hoạt cơ chế Fallback Audio.");
             } else {
-                log.warn("FPT.AI trả về HTTP {}: {}. Kích hoạt cơ chế Fallback Audio.", postResponse.statusCode(), postResponse.body());
+                // Tầng FPT.AI v5 truyền thống
+                HttpRequest postRequest = HttpRequest.newBuilder()
+                        .uri(URI.create(apiUrl))
+                        .timeout(Duration.ofSeconds(20))
+                        .header("api-key", apiKey != null ? apiKey : "")
+                        .header("voice", "banmai")
+                        .header("speed", speedHeader)
+                        .header("format", "mp3")
+                        .header("Content-Type", "text/plain; charset=utf-8")
+                        .POST(HttpRequest.BodyPublishers.ofString(text))
+                        .build();
+
+                HttpResponse<String> postResponse = httpClient.send(postRequest, HttpResponse.BodyHandlers.ofString());
+                if (postResponse.statusCode() == 200) {
+                    JsonNode rootNode = objectMapper.readTree(postResponse.body());
+                    if (rootNode.has("async") && !rootNode.get("async").isNull()) {
+                        asyncUrl = rootNode.get("async").asText();
+                        audioBytes = pollAndDownloadAudio(asyncUrl, 3, 1500);
+                    }
+                } else {
+                    log.warn("FPT.AI v5 trả về HTTP {}. Kích hoạt cơ chế Fallback.", postResponse.statusCode());
+                }
             }
         } catch (Exception e) {
-            log.warn("Lỗi khi kết nối FPT.AI Cloud API: {}. Sử dụng file dự phòng.", e.getMessage());
+            log.warn("Lỗi khi kết nối FPT Cloud API: {}. Sử dụng engine dự phòng.", e.getMessage());
         }
 
         // Bước 3: Nếu FPT.AI không trả về audio hợp lệ (hoặc do rate limit 429), kích hoạt Dynamic TTS Engine

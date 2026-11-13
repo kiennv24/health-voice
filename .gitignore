@@ -21,6 +21,21 @@ target/
 .idea/
 *.iml
 
+# Environment & Secrets (Không bao giờ đẩy lên Git)
+.env
+.env.*
+*.env
+!.env.example
+
+# Audio Storage & Generated Uploads
+tts-service/audio_storage/*
+!tts-service/audio_storage/.gitkeep
+health-voice-backend/uploads/*
+!health-voice-backend/uploads/.gitkeep
+uploads/
+*.mp3
+*.wav
+
 # OS
 .DS_Store
 Thumbs.db

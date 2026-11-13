@@ -1,116 +1,84 @@
-# 🌿 HealthVoice 2.0 - Nghiên Cứu & Tổng Hợp Giọng Nói Trong Tư Vấn Sức Khỏe
+# HealthVoice — Nền Tảng Y Tế Số & Trợ Lý Y Khoa AI
 
-Đồ án Công nghệ Phần mềm: **"Nghiên cứu ứng dụng công nghệ tổng hợp và chuyển đổi giọng nói trong xây dựng nội dung tư vấn sức khỏe"**.
-
-Hệ thống hoạt động theo mô hình Client-Server hiện đại, chia tách rõ ràng thành 4 thành phần:
-1. **Client (Frontend Web)**: React 18 (Vite) + Tailwind CSS + Lucide Icons + Axios + Web Audio API.
-2. **Core Backend Server**: Java 21 + Spring Boot 3.3.4 + Spring Security 6 (Stateless JWT) + Spring Data JPA + MySQL 8.0.
-3. **TTS AI Engine Service**: Python 3.11/3.14 (FastAPI) + FPT.AI TTS Cloud API + Microsoft Edge Neural TTS + Bộ chuẩn hóa văn bản y tế chuyên biệt (Regex/NLP rule-based).
-4. **Cơ sở dữ liệu**: MySQL 8.0 (`health_voice_db`).
+> **Hệ thống tư vấn sức khỏe thông minh và sản xuất Podcast y khoa số hóa**  
+> Tích hợp công nghệ **Google Gemini LLM** (Đánh giá lâm sàng chuyên sâu) & **FPT AI Factory** (Tổng hợp giọng nói tiếng Việt chuẩn y khoa).
 
 ---
 
-## 🏛️ 1. Kiến Trúc Hệ Thống (Architecture Overview)
+## 🌟 Tính Năng Cốt Lõi
 
-```mermaid
-flowchart TD
-    Client["React Frontend (Vite + Tailwind)\nhttp://localhost:5173"]
-    Backend["Spring Boot Core Server (Java 21)\nhttp://localhost:8080"]
-    TTS["Python FastAPI TTS Service\nhttp://localhost:8000"]
-    DB[("MySQL 8.0 Database\nhealth_voice_db:3306")]
-    FPT["FPT.AI TTS Cloud API\n(Ban Mai, Thu Minh, Gia Huy...)"]
-    Edge["Microsoft Edge Neural TTS\n(vi-VN-HoaiMy, vi-VN-NamMinh)"]
+1. **Trợ Lý Tư Vấn Y Khoa AI (Gemini AI Doctor):**
+   - Phân tích triệu chứng người bệnh, đánh giá chính xác mức độ rủi ro lâm sàng: `HIGH` (Cảnh báo cấp cứu khẩn), `MEDIUM` (Theo dõi sát), `LOW` (Chăm sóc tại nhà).
+   - Chỉ dẫn sinh tồn và các chống chỉ định y tế khẩn cấp (những việc TUYỆT ĐỐI KHÔNG ĐƯỢC LÀM khi nghi ngờ viêm ruột thừa, nhồi máu cơ tim...).
+   - Tự động sinh 3 câu hỏi gợi ý đào sâu lâm sàng cho bệnh nhân.
 
-    Client -->|REST API + JWT Bearer| Backend
-    Backend -->|Spring Data JPA| DB
-    Backend -->|WebClient Reactive HTTP| TTS
-    TTS -->|Primary Engine| FPT
-    TTS -->|Fallback / Neural High-Def| Edge
-    TTS -->|File Storage| Client
+2. **Chuyển Đổi Giọng Nói Chuyên Biệt (FPT AI Factory `FPT.TTS-pro`):**
+   - Đọc câu trả lời tư vấn và bài viết y khoa bằng giọng đọc **Ban Mai** chuẩn ngữ điệu y tế tiếng Việt.
+   - Cơ chế dự phòng đa tầng: FPT AI Factory $\rightarrow$ Microsoft Edge Neural $\rightarrow$ Google TTS.
+   - Bộ nhớ đệm âm thanh thông minh (Audio Cache với mã băm SHA-256) giúp phản hồi tức thì các nội dung đã tạo.
+
+3. **Doctor Studio & Thư Viện Podcast Y Tế:**
+   - Dành cho Bác sĩ soạn thảo kịch bản, chuẩn hóa thuật ngữ y khoa và xuất bản podcast sức khỏe cho cộng đồng.
+
+4. **Sổ Tay Sức Khỏe & Lịch Nhắc Uống Thuốc:**
+   - Hẹn giờ nhắc uống thuốc tự động phát âm thanh giọng đọc nhắc nhở người cao tuổi.
+
+---
+
+## 🏗️ Kiến Trúc Hệ Thống
+
+```
+health-voice-project/
+├── health-voice-backend/       # Spring Boot 3.3.4 (Java 21, MySQL, Spring Security, JWT)
+├── health-voice-frontend/      # React 18, Vite, Tailwind CSS, Lucide Icons
+├── tts-service/                # Python FastAPI Microservice (FPT AI Factory, gTTS)
+├── database/                   # File khởi tạo và script CSDL MySQL
+├── run_all.bat                 # Script 1-click khởi chạy toàn bộ 3 dịch vụ
+└── stop_all.bat                # Script dừng an toàn toàn bộ hệ thống
 ```
 
 ---
 
-## 🛡️ 2. Hệ Thống Phân Quyền & Bảo Mật (RBAC Matrix)
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
 
-| Vai Trò | Mã Quyền | Quyền Hạn & Chức Năng Chính |
-| :--- | :---: | :--- |
-| **Bệnh Nhân / Độc Giả** | `ROLE_LISTENER` / `ROLE_PATIENT` | Truy cập giao diện tư vấn sức khỏe (`/patient`), tương tác chat sinh hiệu, nghe giọng đọc AI, đánh giá chất lượng giọng đọc MOS (1-5 sao), xem lịch sử phiên tư vấn. |
-| **Bác Sĩ / Chuyên Viên** | `ROLE_DOCTOR` | Soạn thảo phác đồ/lời khuyên mẫu (`/doctor`), kiểm thử và nghe thử giọng đọc TTS trước khi xuất bản, quản lý từ điển phát âm y khoa (Lexicon), đồng bộ lên Python TTS. |
-| **Quản Trị Viên** | `ROLE_ADMIN` | Quản lý người dùng, phân quyền (Promote/Demote), cấu hình API Key FPT.AI, giám sát hiệu năng hệ thống (Latency, Cache Hit Ratio, thống kê điểm MOS). |
+### 1. Chuẩn Bị Môi Trường
+* **Java:** JDK 21 trở lên
+* **Node.js:** v18 trở lên
+* **Python:** v3.10 trở lên
+* **Cơ sở dữ liệu:** MySQL Server (cổng 3306)
 
-### Tài Khoản Thực Tế Trong Database (Mật khẩu mặc định: `123456`)
-- **Quản trị viên**: `admin` / `123456`
-- **Bác sĩ Tim Mạch**: `bs_tuanminh` (hoặc `bs_nguyentuanminh`) / `123456`
-- **Bác sĩ Nhi Khoa**: `bs_lanphuong` (hoặc `bs_tranlanphuong`) / `123456`
-- **Người bệnh**: `listener_user` (hoặc `nguyenthimai`) / `123456`
-
----
-
-## 🗄️ 3. Cơ Sở Dữ Liệu MySQL 8.0 (`health_voice_db`)
-
-1. **`users`**: Quản lý tài khoản, mã hóa BCrypt, liên kết vai trò `role_id`.
-2. **`roles`**: Danh mục vai trò (`ROLE_ADMIN`, `ROLE_DOCTOR`, `ROLE_LISTENER`).
-3. **`consultation_sessions`**: Phiên tư vấn sức khỏe của người bệnh (`patient_id`, `title`, `status`).
-4. **`chat_messages`**: Tin nhắn hội thoại (`sender_type`, `raw_content`, `normalized_content`, `audio_url`, `voice_code`, `latency_ms`, `is_cached`).
-5. **`audio_cache`**: Bộ nhớ đệm SHA-256 (`text_hash`, `audio_url`, `voice_code`, `speed`, `file_size`, `hit_count`).
-6. **`medical_lexicon`**: Từ điển phát âm y khoa (`raw_term`, `phonetic_replacement`, `category`, `is_active`).
-7. **`mos_evaluations`**: Đánh giá thang điểm MOS (`naturalness_score`, `clarity_score`, `tone_score`, `comment`).
-8. **`advice_templates`**: Phác đồ dặn dò y tế mẫu của Bác sĩ (`doctor_id`, `title`, `category`, `content`, `audio_url`, `is_public`).
-9. **`categories`** & **`voice_configs`**: Chuyên khoa lâm sàng và cấu hình 6 giọng đọc (Ban Mai, Thu Minh, Gia Huy, Mỹ An, Lê Minh, Minh Quang).
-
----
-
-## 🚀 4. Hướng Dẫn Khởi Động Dự Án
-
-### Cách 1: Khởi động bằng Docker Compose (Khuyến nghị cho chấm đồ án)
-Chạy toàn bộ 4 containers chỉ với 1 câu lệnh duy nhất:
+### 2. Thiết Lập Biến Môi Trường (`.env`)
+Sao chép file mẫu `.env.example` thành `.env` tại thư mục gốc:
 ```bash
-docker compose up --build
+cp .env.example .env
 ```
-- Frontend: `http://localhost:80` (hoặc `http://localhost:5173` khi chạy dev)
-- Backend API: `http://localhost:8080`
-- Python TTS Service: `http://localhost:8000/docs`
-- MySQL Database: `localhost:3306`
+Điền các khóa API cần thiết:
+```properties
+# Google Gemini LLM API Key
+GEMINI_API_KEY=your_gemini_api_key_here
 
-### Cách 2: Khởi động trực tiếp trên Windows (File `run_all.bat`)
-Chỉ cần nhấp đúp vào tệp:
-```cmd
-run_all.bat
+# FPT AI Factory API Key
+FPT_AI_KEY=your_fpt_ai_key_here
+FPT_AI_API_URL=https://mkp-api.fptcloud.com/v1/audio/speech
+FPT_AI_MODEL=FPT.TTS-pro
+
+# MySQL Database
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=health_voice_db
+DB_USERNAME=root
+DB_PASSWORD=your_password
 ```
-Hoặc khởi chạy từng thành phần thủ công:
-1. **Python TTS Service**:
-   ```bash
-   cd tts-service
-   pip install -r requirements.txt
-   python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-2. **Spring Boot Backend Core**:
-   ```bash
-   cd health-voice-backend
-   .\mvnw.cmd spring-boot:run
-   ```
-3. **React Frontend**:
-   ```bash
-   cd health-voice-frontend
-   npm run dev
-   ```
 
----
+### 3. Khởi Chạy Nhanh (1-Click)
+Chỉ cần nhấp đúp hoặc chạy script:
+```bash
+./run_all.bat
+```
+Hoặc khởi chạy từng thành phần riêng lẻ:
+* **TTS Microservice:** `cd tts-service && python -m uvicorn main:app --port 8000`
+* **Backend:** `cd health-voice-backend && mvn spring-boot:run`
+* **Frontend:** `cd health-voice-frontend && npm run dev`
 
-## 🎯 5. Tính Năng Nổi Bật Đạt Điểm Cao Trong Đồ Án
+Truy cập giao diện tại: **http://localhost:5173** (hoặc **http://localhost:3000**)
 
-1. **Chuẩn hóa văn bản y tế Tiếng Việt chuyên sâu**:
-   - `120/80 mmHg` $\rightarrow$ *"một trăm hai mươi trên tám mươi mi-li-mét thủy ngân"*
-   - `SpO2 96%` $\rightarrow$ *"nồng độ ô-xi trong máu chín mươi sáu phần trăm"*
-   - `Paracetamol 500mg 1v` $\rightarrow$ *"pa ra xê ta mon năm trăm mi-li-gam một viên"*
-   - `> 38.5 độ C` $\rightarrow$ *"trên ba mươi tám phẩy năm độ xê"*
-2. **Động cơ âm thanh kép (Dual TTS Engine)**:
-   - FPT.AI TTS Cloud v5 (với khả năng nhập custom API Key).
-   - Microsoft Edge Neural TTS tích hợp trực tiếp, không bao giờ bị giới hạn hạn mức (Rate limit 429), bảo đảm **100% văn bản nhập vào đều được phát âm chính xác từng từ**.
-3. **Bộ nhớ đệm âm thanh SHA-256 (Audio Cache)**:
-   - Tối ưu độ trễ xuống dưới 10ms đối với các câu tư vấn lặp lại, tiết kiệm tối đa tài nguyên máy chủ.
-4. **Trình phát âm thanh chuyên nghiệp với Waveform & MOS Evaluation**:
-   - Điều chỉnh tốc độ 0.75x, 1x, 1.25x.
-   - Thanh tiến trình phát sóng âm dạng động.
-   - Popup đánh giá chất lượng giọng đọc theo chuẩn quốc tế ITU-T P.800 (Mean Opinion Score).

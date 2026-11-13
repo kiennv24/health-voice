@@ -62,4 +62,8 @@ public class ChatMessage {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
     }
+
+    public String getAudioUrl() {
+        return this.audioUrl;
+    }
 }

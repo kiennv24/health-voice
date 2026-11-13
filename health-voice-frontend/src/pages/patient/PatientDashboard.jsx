@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  Plus, 
-  MessageSquare, 
-  Mic, 
-  Send, 
-  Star, 
-  Download, 
-  X, 
-  Check, 
-  ChevronDown, 
-  AlertCircle, 
-  Sparkles, 
-  Volume2, 
-  PhoneCall, 
-  AlertTriangle, 
+import {
+  Plus,
+  MessageSquare,
+  Mic,
+  Send,
+  Star,
+  Download,
+  X,
+  Check,
+  ChevronDown,
+  AlertCircle,
+  Sparkles,
+  Volume2,
+  PhoneCall,
+  AlertTriangle,
   ShieldAlert,
   Trash2,
   HelpCircle
@@ -137,11 +137,10 @@ function AudioPlayer({ audioUrl, engine }) {
             <button
               key={s}
               onClick={() => changeSpeed(s)}
-              className={`text-xs px-2 py-1 rounded-md border font-semibold transition-all duration-150 t-btn-press ${
-                speed === s 
-                  ? 'bg-teal-800 text-white border-teal-800 shadow-2xs' 
-                  : 'bg-white text-slate-600 border-slate-200/90 hover:border-teal-600'
-              }`}
+              className={`text-xs px-2 py-1 rounded-md border font-semibold transition-all duration-150 t-btn-press ${speed === s
+                ? 'bg-teal-800 text-white border-teal-800 shadow-2xs'
+                : 'bg-white text-slate-600 border-slate-200/90 hover:border-teal-600'
+                }`}
               title={`Tốc độ đọc ${s}x`}
             >
               {s}×
@@ -183,7 +182,7 @@ function ChatMessage({ msg, onQuickReply }) {
     try {
       quickRepliesList = typeof msg.quickReplies === 'string' ? JSON.parse(msg.quickReplies) : msg.quickReplies;
     } catch (e) {
-      quickRepliesList = typeof msg.quickReplies === 'string' 
+      quickRepliesList = typeof msg.quickReplies === 'string'
         ? msg.quickReplies.split('|').map(s => s.trim()).filter(Boolean)
         : [];
     }
@@ -271,33 +270,27 @@ function ChatMessage({ msg, onQuickReply }) {
       <div className={`max-w-sm lg:max-w-xl border rounded-2xl rounded-tl-sm px-4.5 py-4 transition-colors ${getRiskContainerClasses()}`}>
         {/* Header thông tin trợ lý & luật phân loại */}
         <div className="flex items-center gap-2 mb-2.5 pb-2 border-b border-slate-200/60">
-          <div className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] text-white ${
-            riskLevel === 'EMERGENCY' ? 'bg-rose-600' :
+          <div className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[10px] text-white ${riskLevel === 'EMERGENCY' ? 'bg-rose-600' :
             riskLevel === 'HIGH' ? 'bg-amber-600' :
-            riskLevel === 'MEDIUM' ? 'bg-sky-700' : 'bg-teal-800'
-          }`}>
+              riskLevel === 'MEDIUM' ? 'bg-sky-700' : 'bg-teal-800'
+            }`}>
             AI
           </div>
           <span className="text-xs font-bold text-slate-900">Trợ Lý Sức Khỏe AI</span>
 
-          {/* Engine Badge */}
-          {riskLevel === 'EMERGENCY' ? (
-            <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded-md font-bold ml-auto flex items-center gap-1 shadow-2xs">
-              <ShieldAlert className="w-2.5 h-2.5 text-rose-600 animate-pulse" />
-              <span>Cây Quyết Định 115</span>
-            </span>
-          ) : (
-            <span className="text-[10px] bg-sky-50 text-sky-800 border border-sky-300 px-2 py-0.5 rounded-md font-bold ml-auto flex items-center gap-1 shadow-2xs">
-              <Sparkles className="w-2.5 h-2.5 text-sky-600" />
-              <span>Gemini LLM Engine</span>
-            </span>
-          )}
-
-          {msg.isCached && (
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded-md font-semibold ml-1">
-              Audio Cache HIT
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-1.5">
+            {riskLevel === 'EMERGENCY' && (
+              <span className="text-[10px] bg-rose-100 text-rose-800 border border-rose-300 px-2 py-0.5 rounded-md font-bold flex items-center gap-1 shadow-2xs">
+                <ShieldAlert className="w-2.5 h-2.5 text-rose-600 animate-pulse" />
+                <span>Cây Quyết Định 115</span>
+              </span>
+            )}
+            {msg.isCached && (
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded-md font-semibold">
+                Audio Cache HIT
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Huy hiệu & Cảnh báo phân loại rủi ro y tế */}
@@ -624,11 +617,10 @@ export default function PatientDashboard() {
             <div
               key={session.id}
               onClick={() => { setActiveSession(session); setError(''); }}
-              className={`group w-full text-left px-4 py-3.5 border-b border-slate-100/90 hover:bg-slate-50/80 transition-all cursor-pointer ${
-                activeSession?.id === session.id 
-                  ? 'bg-teal-50/70 border-l-4 border-l-teal-800' 
-                  : 'border-l-4 border-l-transparent'
-              }`}
+              className={`group w-full text-left px-4 py-3.5 border-b border-slate-100/90 hover:bg-slate-50/80 transition-all cursor-pointer ${activeSession?.id === session.id
+                ? 'bg-teal-50/70 border-l-4 border-l-teal-800'
+                : 'border-l-4 border-l-transparent'
+                }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -736,10 +728,10 @@ export default function PatientDashboard() {
                 </div>
               )}
               {messages.map(msg => (
-                <ChatMessage 
-                  key={msg.id} 
-                  msg={msg} 
-                  onQuickReply={handleQuickReply} 
+                <ChatMessage
+                  key={msg.id}
+                  msg={msg}
+                  onQuickReply={handleQuickReply}
                 />
               ))}
               {sending && (
