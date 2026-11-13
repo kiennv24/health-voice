@@ -11,7 +11,6 @@ import com.healthvoice.repository.ConsultationSessionRepository;
 import com.healthvoice.repository.HealthPodcastRepository;
 import com.healthvoice.repository.MedicationReminderRepository;
 import com.healthvoice.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +25,6 @@ import java.util.List;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ConsultationService {
 
     private final ConsultationSessionRepository sessionRepository;
@@ -39,6 +37,30 @@ public class ConsultationService {
     private final AudioCacheRepository audioCacheRepository;
     private final HealthPodcastRepository podcastRepository;
     private final MedicationReminderRepository reminderRepository;
+
+    public ConsultationService(
+            ConsultationSessionRepository sessionRepository,
+            ChatMessageRepository messageRepository,
+            UserRepository userRepository,
+            TtsProxyService ttsProxyService,
+            TriageService triageService,
+            GeminiService geminiService,
+            ObjectMapper objectMapper,
+            AudioCacheRepository audioCacheRepository,
+            HealthPodcastRepository podcastRepository,
+            MedicationReminderRepository reminderRepository
+    ) {
+        this.sessionRepository = sessionRepository;
+        this.messageRepository = messageRepository;
+        this.userRepository = userRepository;
+        this.ttsProxyService = ttsProxyService;
+        this.triageService = triageService;
+        this.geminiService = geminiService;
+        this.objectMapper = objectMapper;
+        this.audioCacheRepository = audioCacheRepository;
+        this.podcastRepository = podcastRepository;
+        this.reminderRepository = reminderRepository;
+    }
 
     @Transactional
     public ConsultationSession createSession(Long patientId, String title) {
@@ -121,9 +143,9 @@ public class ConsultationService {
         }
 
         // =====================================================================
-        // TẦNG 4: FPT.AI TTS & AUDIO CACHE
+        // TẦNG 4: FPT.AI TTS & AUDIO CACHE (Cố định duy nhất giọng đọc Ban Mai)
         // =====================================================================
-        String selectedVoice = (voiceCode != null && !voiceCode.isBlank()) ? voiceCode : "banmai";
+        String selectedVoice = "banmai";
         TtsProxyService.TtsProxyResult ttsResult;
         try {
             ttsResult = ttsProxyService.synthesize(adviceText, selectedVoice, speed, apiKey);
@@ -197,7 +219,8 @@ public class ConsultationService {
         // 1. Lấy danh sách tin nhắn để trích xuất file âm thanh thuộc phiên cần xóa
         List<ChatMessage> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
         List<String> audioUrls = messages.stream()
-                .map(ChatMessage::getAudioUrl)
+                .filter(java.util.Objects::nonNull)
+                .map(msg -> msg.getAudioUrl())
                 .filter(url -> url != null && !url.isBlank() && !url.contains("fallback"))
                 .distinct()
                 .toList();
@@ -239,22 +262,23 @@ public class ConsultationService {
      * Xóa file âm thanh vật lý trên đĩa cứng ở tất cả các thư mục lưu trữ (FastAPI và Spring Boot)
      */
     private void deletePhysicalAudioFile(String filename) {
-        List<Path> candidatePaths = List.of(
-                Paths.get("d:/health-voice-project/tts-service/audio_storage", filename),
-                Paths.get("d:/health-voice-project/audio_storage", filename),
-                Paths.get("audio_storage", filename),
-                Paths.get("../tts-service/audio_storage", filename),
-                Paths.get("../audio_storage", filename)
-        );
+        String[] storageDirectories = {
+                "d:/health-voice-project/tts-service/audio_storage",
+                "d:/health-voice-project/audio_storage",
+                "audio_storage",
+                "../tts-service/audio_storage",
+                "../audio_storage"
+        };
 
-        for (Path path : candidatePaths) {
+        for (String dirPath : storageDirectories) {
             try {
+                Path path = Paths.get(dirPath, filename);
                 if (Files.exists(path)) {
                     Files.delete(path);
                     log.info("Đã xóa thành công file vật lý: {}", path.toAbsolutePath());
                 }
             } catch (Exception e) {
-                log.warn("Không thể xóa file vật lý {}: {}", path.toAbsolutePath(), e.getMessage());
+                log.warn("Không thể xóa file vật lý trong {}: {}", dirPath, e.getMessage());
             }
         }
     }

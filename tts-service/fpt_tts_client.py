@@ -20,8 +20,44 @@ import gtts
 # ============================================================================
 # Cấu hình
 # ============================================================================
-FPT_AI_API_URL = "https://api.fpt.ai/hmi/tts/v5"
-DEFAULT_FPT_API_KEY = os.getenv("FPT_AI_API_KEY", "QT2SnOFWi3P4pekGKV1TkuzQAKJUcNgZ")
+def _load_env_key():
+    for env_path in [Path(__file__).resolve().parent.parent / ".env", Path(".env"), Path("../.env")]:
+        if env_path.exists():
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("FPT_AI_KEY="):
+                            return line.split("=", 1)[1].strip()
+            except Exception:
+                pass
+    return "sk-CriUon12fUrsZHX4dFQkGaabm4V5Gi_fVJCUp6UP-vo="
+
+DEFAULT_FPT_API_KEY = os.getenv("FPT_AI_KEY") or os.getenv("FPT_AI_API_KEY") or _load_env_key()
+FPT_AI_API_URL = os.getenv("FPT_AI_API_URL", "https://api.fpt.ai/hmi/tts/v5")
+
+# FPT AI Factory (mkp-api.fptcloud.com)
+FPT_FACTORY_API_URL = os.getenv("FPT_FACTORY_API_URL", "https://mkp-api.fptcloud.com/v1/audio/speech")
+FPT_FACTORY_MODEL = os.getenv("FPT_AI_MODEL", "FPT.TTS-pro")
+
+FPT_FACTORY_VOICE_MAP = {
+    "banmai": "std_banmai",
+    "std_banmai": "std_banmai",
+    "hn-quynhanh": "std_banmai",
+    "quanganh": "std_quanganh",
+    "std_quanganh": "std_quanganh",
+    "sg-minhhoang": "fci_xuantoan",
+    "fci_xuantoan": "fci_xuantoan",
+    "hue-huonggiang": "fci_phuongan",
+    "fci_phuongan": "fci_phuongan",
+    "thuminh": "fci_phuongan",
+    "myan": "std_banmai",
+    "giahuy": "fci_vietkhoa",
+    "fci_vietkhoa": "fci_vietkhoa",
+    "leminh": "std_quanganh",
+    "minhquang": "std_quanganh",
+}
+
 AUDIO_STORAGE_DIR = Path(os.getenv("AUDIO_STORAGE_DIR", Path(__file__).resolve().parent / "audio_storage"))
 AUDIO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -79,8 +115,34 @@ def clean_text_for_speech(text: str) -> str:
 
 async def _try_fpt_ai(text: str, voice: str, speed: float, api_key: str) -> Optional[bytes]:
     """
-    Gọi FPT.AI TTS v5 và polling nhanh để lấy file MP3.
+    Gọi FPT AI Factory (với key sk-...) hoặc FPT.AI TTS v5 (với key cũ).
     """
+    if not api_key:
+        return None
+
+    # TH1: Key FPT AI Factory (FPT.TTS-pro) — Cố định duy nhất giọng Ban Mai (std_banmai)
+    if api_key.startswith("sk-"):
+        factory_voice = "std_banmai"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+        payload = {
+            "model": FPT_FACTORY_MODEL,
+            "input": text,
+            "response_format": "mp3",
+            "voice": factory_voice
+        }
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                resp = await client.post(FPT_FACTORY_API_URL, json=payload, headers=headers)
+                if resp.status_code == 200 and len(resp.content) > 200:
+                    return resp.content
+        except Exception:
+            return None
+        return None
+
+    # TH2: Key FPT.AI v5 truyền thống
     speed_int = max(-3, min(3, int(round(speed))))
     headers = {
         "api-key": api_key,
@@ -125,20 +187,16 @@ async def _stream_edge_chunks(communicate) -> bytes:
 
 async def _try_edge_neural(text: str, voice: str, speed: float = 0.0) -> Optional[bytes]:
     """
-    Tổng hợp giọng nói qua Microsoft Edge Neural TTS.
-    Giọng Neural tự nhiên, truyền cảm như người thật.
+    Tổng hợp giọng nói qua Microsoft Edge Neural TTS (timeout 8.0s).
     """
     edge_voice = EDGE_VOICE_MAP.get(voice.lower(), "vi-VN-HoaiMyNeural")
-
-    for v in [edge_voice, "vi-VN-HoaiMyNeural", "vi-VN-NamMinhNeural"]:
-        try:
-            communicate = edge_tts.Communicate(text, v)
-            audio_data = await asyncio.wait_for(_stream_edge_chunks(communicate), timeout=25.0)
-            if len(audio_data) > 100:
-                return audio_data
-        except Exception:
-            await asyncio.sleep(0.3)
-
+    try:
+        communicate = edge_tts.Communicate(text, edge_voice)
+        audio_data = await asyncio.wait_for(_stream_edge_chunks(communicate), timeout=8.0)
+        if audio_data and len(audio_data) > 100:
+            return audio_data
+    except Exception:
+        pass
     return None
 
 
@@ -204,20 +262,22 @@ async def synthesize_single_chunk(
     speed: float = 0.0,
     api_key: Optional[str] = None,
 ) -> Tuple[bytes, str]:
-    """Tổng hợp một đoạn văn bản đơn lẻ với thứ tự: Edge Neural TTS -> FPT.AI -> gTTS."""
+    """Tổng hợp một đoạn văn bản đơn lẻ với thứ tự ưu tiên: FPT AI Factory -> Edge Neural TTS -> gTTS."""
     effective_key = api_key if api_key else DEFAULT_FPT_API_KEY
 
-    # Tầng 1: Microsoft Edge Neural TTS (siêu tự nhiên, hỗ trợ tiếng Việt mượt mà)
+    # Tầng 1: FPT.AI (FPT AI Factory / FPT.AI v5) — Ưu tiên cao nhất khi đã cấu hình Key
+    if effective_key:
+        audio_bytes = await _try_fpt_ai(text, voice, speed, effective_key)
+        if audio_bytes and len(audio_bytes) > 100:
+            engine_name = "fpt_ai_factory" if effective_key.startswith("sk-") else "fpt_ai"
+            return audio_bytes, engine_name
+
+    # Tầng 2: Microsoft Edge Neural TTS (siêu tự nhiên, hỗ trợ tiếng Việt mượt mà)
     audio_bytes = await _try_edge_neural(text, voice, speed)
     if audio_bytes and len(audio_bytes) > 100:
         return audio_bytes, "edge_neural"
 
-    # Tầng 2: FPT.AI (nếu cấu hình hợp lệ)
-    audio_bytes = await _try_fpt_ai(text, voice, speed, effective_key)
-    if audio_bytes and len(audio_bytes) > 100:
-        return audio_bytes, "fpt_ai"
-
-    # Tầng 3: Google TTS
+    # Tầng 3: Google TTS (dự phòng ổn định không giới hạn)
     audio_bytes = await _try_gtts(text)
     if audio_bytes and len(audio_bytes) > 100:
         return audio_bytes, "gtts_fallback"
@@ -240,20 +300,23 @@ async def synthesize_audio(
     if not clean_text:
         clean_text = text.strip()
 
-    chunks = _chunk_text(clean_text, max_chunk_len=250)
-    all_audio_bytes = bytearray()
-    primary_engine = "edge_neural"
+    if len(clean_text) <= 1500:
+        chunk_bytes, primary_engine = await synthesize_single_chunk(clean_text, voice, speed, api_key)
+        final_bytes = chunk_bytes
+    else:
+        chunks = _chunk_text(clean_text, max_chunk_len=1000)
+        all_audio_bytes = bytearray()
+        primary_engine = "edge_neural"
 
-    for idx, chunk in enumerate(chunks):
-        chunk_bytes, engine_used = await synthesize_single_chunk(chunk, voice, speed, api_key)
-        if chunk_bytes:
-            all_audio_bytes.extend(chunk_bytes)
-        if idx == 0 and engine_used:
-            primary_engine = engine_used
-        # Khoảng nghỉ nhẹ giữa các chunk
-        await asyncio.sleep(0.15)
+        for idx, chunk in enumerate(chunks):
+            chunk_bytes, engine_used = await synthesize_single_chunk(chunk, voice, speed, api_key)
+            if chunk_bytes:
+                all_audio_bytes.extend(chunk_bytes)
+            if idx == 0 and engine_used:
+                primary_engine = engine_used
+            await asyncio.sleep(0.05)
 
-    final_bytes = bytes(all_audio_bytes)
+        final_bytes = bytes(all_audio_bytes)
 
     # Lưu file MP3 vào thư mục audio_storage duy nhất của TTS service
     text_hash = hashlib.sha256(f"{clean_text[:200]}|{len(clean_text)}|{voice}|{speed}".encode()).hexdigest()[:16]
